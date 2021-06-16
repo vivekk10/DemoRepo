@@ -1,0 +1,205 @@
+Step 1 on startup file
+
+CC= arm-none-eabi-gcc
+MACH=cortex-m4
+CFLAGS=-c -mcpu=$(MACH) -mthumb -std=gnu11 -Wall -O0
+
+all:main.o led.o stm32_startup.o
+main.o:main.c
+	$(CC) $(CFLAGS) -o $@ $^
+	
+led.o:led.c
+	$(CC) $(CFLAGS) -o $@ $^	
+	
+stm32_startup.o:stm32_startup.c
+	$(CC) $(CFLAGS) -o $@ $^
+	
+clean:
+		rm -rf *.o *.elf
+		
+/**************************************************************************/
+
+Step 2 :startup file without variabel attribute 
+		
+#include<stdint.h>
+
+#define SRAM_START 0x20000000U
+#define SRAM_SIZE   (128 * 1024)  //128KB
+#define SRAM_END 	((SRAM_START) + (SRAM_SIZE))
+
+#define STACK_START 	SRAM_END
+void Reset_handler(void);  // function prototype
+
+uint32_t vectors[] = {
+	STACK_START,
+	(uint32_t) &Reset_handler,   // address of reset handler
+	
+	
+};
+
+
+
+
+void Reset_handler(void)
+{
+	
+}
+		
+/**************************************************************************
+
+Step 3 :startup file with variable attribute
+
+#include<stdint.h>
+
+#define SRAM_START 0x20000000U
+#define SRAM_SIZE   (128 * 1024)  //128KB
+#define SRAM_END 	((SRAM_START) + (SRAM_SIZE))
+
+#define STACK_START 	SRAM_END
+void Reset_handler(void);  // function prototype
+
+uint32_t vectors[] __attribute__ ((section (".isr_vector"))) = 
+{
+	STACK_START,
+	(uint32_t) &Reset_handler,   // address of reset handler
+	
+	
+}; 
+
+
+void Reset_handler(void)
+{
+	
+}
+
+/**************************************************************************
+Step 4 :startup file with variable attribute more changes
+
+#include<stdint.h>
+
+#define SRAM_START 0x20000000U
+#define SRAM_SIZE   (128 * 1024)  //128KB
+#define SRAM_END 	((SRAM_START) + (SRAM_SIZE))
+
+#define STACK_START 	SRAM_END
+void Reset_handler(void) __attribute__ ((section (".random")));  // function prototype
+
+uint32_t vectors[] __attribute__ ((section (".isr_vector"))) = 
+{
+	STACK_START,
+	(uint32_t) &Reset_handler,   // address of reset handler
+	
+	
+}; 
+
+
+
+
+void Reset_handler(void)
+{
+	
+}
+/**************************************************************************
+Step 5 :startup file with weak and alias function
+
+#include<stdint.h>
+
+#define SRAM_START 0x20000000U
+#define SRAM_SIZE   (128 * 1024)  //128KB
+#define SRAM_END 	((SRAM_START) + (SRAM_SIZE))
+
+#define STACK_START 	SRAM_END
+void Reset_handler(void);  // function prototype
+void NMI_handler(void) __attribute__ ((weak, alias ("Default_handler")));
+void HardFault_handler(void) __attribute__ ((weak, alias ("Default_handler")));
+
+
+uint32_t vectors[] __attribute__ ((section (".isr_vector"))) = 
+{
+	STACK_START,
+	(uint32_t) &Reset_handler,   // address of reset handler
+	(uint32_t) &NMI_handler,
+	
+}; 
+
+
+void Reset_handler(void)
+{
+	
+}
+
+
+void Default_handler(void)
+{
+	while(1);
+}
+
+/**************************************************************************
+
+Step6: Linker file
+
+ENTRY(Reset_Handler)
+
+Memory
+{
+	FLASH(rx): ORIGIN=0x08000000, LENGTH=1024K
+	SRAM1(rwx):ORIGIN=0x20000000, LENGTH=116K
+	SRAM2(rwx):ORIGIN=0x2001C000, LENGTH=16K
+}
+				OR
+				
+				ENTRY(Reset_Handler)
+
+Memory
+{
+	FLASH(rx): ORIGIN=0x08000000, LENGTH=1024K
+	SRAM(rwx):ORIGIN=0x20000000, LENGTH=128K
+}
+
+
+/**************************************************************************
+
+Step 7: Modify Linker file
+
+ENTRY(Reset_Handler)
+
+MEMORY
+{
+  FLASH(rx):ORIGIN =0x08000000,LENGTH =1024K
+  SRAM(rwx):ORIGIN =0x20000000,LENGTH =128K
+}
+
+
+SECTIONS
+{
+  .text :
+  {
+    *(.isr_vector)
+    *(.text)
+	*(.text.*)
+	*(.init)
+	*(.fini)
+	*(.rodata)
+	*(.rodata.*)
+	_etext = .;
+  }> FLASH
+  
+ 
+  .data :
+  {
+    _sdata = .;
+	*(.data)
+	_edata = .;
+  }> SRAM AT> FLASH
+  
+  .bss :
+  {
+    _sbss = .;
+	*(.bss)
+	_ebss = .;
+	
+  }> SRAM
+  
+  
+}
+
